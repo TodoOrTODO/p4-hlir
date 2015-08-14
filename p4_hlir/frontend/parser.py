@@ -1218,8 +1218,8 @@ class P4Parser:
     def p_meter_declaration(self, p):
         """ meter_declaration : METER ID LBRACE \
                                     TYPE COLON meter_type SEMI \
-                                    direct_or_static \
                                     direct_result \
+                                    direct_or_static \
                                     instance_count \
                                 RBRACE
         """

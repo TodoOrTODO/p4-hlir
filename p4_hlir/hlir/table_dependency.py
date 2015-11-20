@@ -17,7 +17,7 @@ import sys
 from collections import defaultdict
 from dependencies import *
 import itertools
-from analysis_utils import retrieve_from_one_action
+from analysis_utils import retrieve_from_one_action, reset_state
 import logging
 
 """
@@ -99,23 +99,7 @@ class rmt_conditional_table(rmt_table):
 
         self.condition = p4_table.condition
 
-        self._retrieve_match_fields()
-
-    def _retrieve_match_fields(self):
-        def condition_get_fields(condition, field_set):
-            if condition is None:
-                return
-            if isinstance(condition, p4.p4_headers.p4_field):
-                # TODO : not fine grain enough, the defined case should be
-                # treated differently
-                get_all_subfields(condition, field_set)
-                return
-            if not isinstance(condition, p4.p4_expression):
-                return
-            condition_get_fields(condition.left, field_set)
-            condition_get_fields(condition.right, field_set)
-
-        condition_get_fields(self.condition, self.match_fields)
+        self.match_fields = self.p4_table.retrieve_match_fields()
 
 class rmt_p4_table(rmt_table):
     def __init__(self, p4_table, conditional_barrier = None):
@@ -126,13 +110,9 @@ class rmt_p4_table(rmt_table):
         self.min_size = p4_table.min_size
         self.max_size = p4_table.max_size
 
-        self._retrieve_match_fields()
+        self.match_fields = self.p4_table.retrieve_match_fields()
 
         self._retrieve_action_fields()
-
-    def _retrieve_match_fields(self):
-        for field in self.p4_table.match_fields:
-            get_all_subfields(field[0], self.match_fields)
 
     # not really needed any more
     def _retrieve_action_fields(self):
@@ -379,8 +359,7 @@ class rmt_table_graph():
     # Remove redundant edges with a transitive reduction algo in O(n^3), called
     # after resolving dependencies
     def transitive_reduction(self):
-        if not self._validated:
-            print "validating", self.validate()
+        assert( self.validate() )
 
         # for a given table (root_table), find alternate paths to its neighbors
         # (root_neighbors). We need max_type_ because we only eliminate an edge
@@ -416,14 +395,12 @@ class rmt_table_graph():
                     transitive_reduction_rec(table, dependency.to, neighbors,
                                              max_type_ = dependency.type_)
 
-        if not self._validated:
-            print "validating", self.validate()
+        assert( self.validate() )
             
 
     # called after building the graph to resolve dependencies
     def resolve_dependencies(self):
-        if not self._validated:
-            print "validating", self.validate()
+        assert( self.validate() )
 
         # We start by resolving the dependencies we have (CONTROL_FLOW) then we
         # recursively compute all possible dependencies in the graph (we will
@@ -454,8 +431,7 @@ class rmt_table_graph():
                 visited = set()
                 resolve_rec(table, next_table, visited, dependency.action_set)
 
-        if not self._validated:
-            print "validating", self.validate()
+        assert( self.validate() )
                 
 
     def generate_dot(self, name = "ingress", out = sys.stdout,
@@ -560,9 +536,8 @@ def rmt_build_table_graph(name, entry):
     dummy_table = table_graph.add_dummy_table(name)
     parse_p4_table_graph(table_graph, entry,
                             parent = dummy_table)
-    print "validating: ", table_graph.validate()
+    assert( table_graph.validate() )
     table_graph.resolve_dependencies()
-    print "validating: ", table_graph.validate()
     return table_graph
 
 # returns a rmt_table_graph object for ingress
@@ -588,6 +563,8 @@ def rmt_gen_dot_table_graph_egress(out):
                                  debug = True)
 
 def annotate_hlir(hlir):
+    reset_state(include_valid = True)
+
     for ingress_ptr in hlir.p4_ingress_ptr:
         ingress_graph = rmt_build_table_graph_ingress(hlir)
         ingress_graph.transitive_reduction()
@@ -597,4 +574,6 @@ def annotate_hlir(hlir):
         egress_graph = rmt_build_table_graph_egress(hlir)
         egress_graph.transitive_reduction()
         egress_graph.annotate_hlir()
+
+    reset_state(include_valid = False)
 

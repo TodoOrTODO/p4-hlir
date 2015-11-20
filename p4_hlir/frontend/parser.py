@@ -317,66 +317,51 @@ class P4Parser:
         value = (p[1] == "true")
         p[0] = P4Bool(self.get_filename(), p.lineno(1), value)
 
-    def p_field_value_1(self, p):
-        """ field_value : const_value
+    def p_length_exp(self, p):
+        """ length_exp : arith_exp
         """
         p[0] = p[1]
 
-    def p_field_value_2(self, p):
-        """ field_value : MINUS const_value
-        """
-        p[0] = P4UnaryExpression(self.get_filename, p.lineno(1), p[1], p[2])
+    def p_arith_exp_1(self, p):
+        """ arith_exp : arith_exp PLUS arith_exp
+                      | arith_exp MINUS arith_exp
+                      | arith_exp TIMES arith_exp
+                      | arith_exp LSHIFT arith_exp
+                      | arith_exp RSHIFT arith_exp
+                      | arith_exp AND arith_exp
+                      | arith_exp OR arith_exp
+                      | arith_exp XOR arith_exp
 
-    def p_field_value_3(self, p):
-        """ field_value : PLUS const_value
-        """
-        p[0] = p[2]
-
-    def p_length_exp_1(self, p):
-        """ length_exp : length_exp PLUS length_exp
-                       | length_exp MINUS length_exp
-                       | length_exp TIMES length_exp
-                       | length_exp LSHIFT length_exp
-                       | length_exp RSHIFT length_exp
         """
         p[0] = P4BinaryExpression(self.get_filename(), p.lineno(1),
                                   p[2], p[1], p[3])
-        # if p[2] == "+":
-        #     p[0] = P4PlusExpression(self.get_filename(), p.lineno(1),
-        #                             p[1], p[3])
-        # elif p[2] == "-":
-        #     p[0] = P4MinusExpression(self.get_filename(), p.lineno(1),
-        #                              p[1], p[3])
-        # elif p[2] == "*":
-        #     p[0] = P4TimesExpression(self.get_filename(), p.lineno(1),
-        #                              p[1], p[3])
-        # elif p[2] == "<<":
-        #     p[0] = P4LShiftExpression(self.get_filename(), p.lineno(1),
-        #                               p[1], p[3])
-        # elif p[2] == ">>":
-        #     p[0] = P4RShiftExpression(self.get_filename(), p.lineno(1),
-        #                               p[1], p[3])
 
-    def p_length_exp_2(self, p):
-        """ length_exp : LPAREN length_exp RPAREN
+    def p_arith_exp_2(self, p):
+        """ arith_exp : LPAREN arith_exp RPAREN
         """
         p[0] = p[2]
 
-    def p_length_exp_3(self, p):
-        """ length_exp : MINUS length_exp %prec UMINUS
-                       | PLUS length_exp %prec UMINUS
+    def p_arith_exp_3(self, p):
+        """ arith_exp : NOT arith_exp
+                      | MINUS arith_exp %prec UMINUS
+                      | PLUS arith_exp %prec UMINUS
         """
         p[0] = P4UnaryExpression(self.get_filename(), p.lineno(1), p[1], p[2])
 
-    def p_length_exp_4(self, p):
-        """ length_exp : const_value
+    def p_arith_exp_4(self, p):
+        """ arith_exp : const_value
         """
         p[0] = p[1]
 
-    def p_length_exp_5(self, p):
-        """ length_exp : ID
+    def p_arith_exp_5(self, p):
+        """ arith_exp : ID
         """
         p[0] = P4RefExpression(self.get_filename(), p.lineno(1), p[1])
+
+    def p_arith_exp_6(self, p):
+        """ arith_exp : field_ref
+        """
+        p[0] = p[1]
 
 
     # INSTANCE DECLARATION
@@ -928,22 +913,17 @@ class P4Parser:
 
 
     def p_metadata_expr_1(self, p):
-        """ metadata_expr : const_value
+        """ metadata_expr : arith_exp
         """
         p[0] = p[1]
 
     def p_metadata_expr_2(self, p):
-        """ metadata_expr : field_ref
-        """
-        p[0] = p[1]
-
-    def p_metadata_expr_3(self, p):
         """ metadata_expr : LATEST PERIOD ID
         """
         p[0] = P4FieldRefExpression(self.get_filename(), p.lineno(1),
                                     p[1], p[3])   # "latest" is header ref
 
-    def p_metadata_expr_4(self, p):
+    def p_metadata_expr_3(self, p):
         """ metadata_expr : CURRENT LPAREN const_value COMMA const_value
         """
         p[0] = P4CurrentExpression(self.get_filename(), p.lineno(1), p[3], p[5])
@@ -1508,18 +1488,8 @@ class P4Parser:
         """
         p[0] = p[1] + [p[3]]
 
-    def p_arg_1(self, p):
-        """ arg : header_ref
-        """
-        p[0] = p[1]
-
-    def p_arg_2(self, p):
-        """ arg : field_value
-        """
-        p[0] = p[1]
-
-    def p_arg_3(self, p):
-        """ arg : field_ref
+    def p_arg(self, p):
+        """ arg : general_exp
         """
         p[0] = p[1]
 
@@ -1770,112 +1740,108 @@ class P4Parser:
         p[0] = p[1]
 
     def p_control_function_declaration(self, p):
-        """ control_function_declaration : CONTROL ID LBRACE \
-                                               control_statement_list \
-                                           RBRACE
+        """ control_function_declaration : CONTROL ID control_statement
         """
-        p[0] = P4ControlFunction(self.get_filename(), p.lineno(1), p[2], p[4])
-
-    # def p_control_function_declaration_error_1(self, p):
-    #     """ control_function_declaration : CONTROL ID LBRACE error RBRACE
-    #     """
-    #     self.print_error(p.lineno(1),
-    #                      "Error in body of control function %s" % p[2])
+        p[0] = P4ControlFunction(self.get_filename(), p.lineno(1), p[2], p[3])
 
     def p_control_function_declaration_error_2(self, p):
-        """ control_function_declaration : CONTROL error RBRACE
-        """
-        self.print_error(p.lineno(1),
-                         "Error in control function")
-
-    def p_control_function_declaration_error_3(self, p):
         """ control_function_declaration : CONTROL error
         """
         self.print_error(p.lineno(1),
                          "Error in control function")
 
-    def p_control_statement_list_1(self, p):
-        """ control_statement_list : empty
+    def p_control_statement_1(self, p):
+        """ control_statement : expression_statement
+        """
+        p[0] = [p[1]]
+
+    def p_control_statement_2(self, p):
+        """ control_statement : compound_statement
+        """
+        p[0] = p[1]
+
+    def p_compound_statement_1(self, p):
+        """ compound_statement : LBRACE control_statement_list RBRACE
+        """
+        p[0] = p[2]
+
+    def p_compound_statement_1_error_1(self, p):
+        """ compound_statement : LBRACE error RBRACE
+        """
+        self.print_error(p.lineno(1),
+                         "Error in compound statement")
+        p[0] = []
+
+    def p_compound_statement_2(self, p):
+        """ compound_statement : LBRACE RBRACE
         """
         p[0] = []
+
+    def p_control_statement_list_1(self, p):
+        """ control_statement_list : control_statement
+        """
+        p[0] = p[1]
 
     def p_control_statement_list_2(self, p):
-        """ control_statement_list : control_statement_list control_statement
+        """ control_statement_list : control_statement control_statement_list
         """
-        p[0] = p[1] + [p[2]]
+        p[0] = p[1] + p[2]
 
-    # is that the best I can do? will not work too well if the first statement
-    # is bad 
-    def p_control_statement_list_error_1(self, p):
-        """ control_statement_list : control_statement_list error
-        """
-        self.print_error(p.lineno(2),
-                         "Error in control function statement")
-        p[0] = []
-
-    # def p_control_statement_list_error_2(self, p):
-    #     """ control_statement_list : error
-    #     """
-    #     self.print_error(p.lineno(1),
-    #                      "Error in control function statement")
-
-    def p_control_statement_1(self, p):
-        """ control_statement : APPLY LPAREN ID RPAREN SEMI
+    def p_expresssion_statement_1(self, p):
+        """ expression_statement : APPLY LPAREN ID RPAREN SEMI
         """
         p[0] = P4ControlFunctionApply(
             self.get_filename(), p.lineno(1),
             P4RefExpression(self.get_filename(), p.lineno(3), p[3])
-            )
+        )
 
-    def p_control_statement_1_error_1(self, p):
-        """ control_statement : APPLY error SEMI
+    def p_expression_statement_1_error_1(self, p):
+        """ expression_statement : APPLY error SEMI
         """
         self.print_error(p.lineno(1),
                          "Invalid apply_table statement")
 
-    def p_control_statement_2(self, p):
-        """ control_statement : IF LPAREN bool_exp RPAREN \
-                                    LBRACE control_statement_list RBRACE
+    def p_expression_statement_2(self, p):
+        """ expression_statement : IF LPAREN bool_exp RPAREN \
+                                       control_statement \
+                                   ELSE \
+                                       control_statement
         """
         p[0] = P4ControlFunctionIfElse(self.get_filename(), p.lineno(1),
-                                       p[3], p[6])
+                                       p[3], p[5], p[7])
 
-    def p_control_statement_2_error_1(self, p):
-        """ control_statement : IF LPAREN error RPAREN \
-                                    LBRACE control_statement_list RBRACE
+    def p_expression_statement_2_error_1(self, p):
+        """ expression_statement : IF LPAREN error RPAREN \
+                                       control_statement \
+                                   ELSE \
+                                       control_statement
         """
         self.print_error(p.lineno(1),
                          "Invalid boolean expression")
 
-    def p_control_statement_3(self, p):
-        """ control_statement : IF LPAREN bool_exp RPAREN \
-                                    LBRACE control_statement_list RBRACE \
-                                ELSE \
-                                    LBRACE control_statement_list RBRACE
+    def p_expression_statement_3(self, p):
+        """ expression_statement : IF LPAREN bool_exp RPAREN control_statement
         """
         p[0] = P4ControlFunctionIfElse(self.get_filename(), p.lineno(1),
-                                       p[3], p[6], p[10])
+                                       p[3], p[5])
 
-    def p_control_statement_3_error_1(self, p):
-        """ control_statement : IF LPAREN error RPAREN \
-                                    LBRACE control_statement_list RBRACE \
-                                ELSE \
-                                    LBRACE control_statement_list RBRACE
+    def p_expression_statement_3_error_1(self, p):
+        """ expression_statement : IF LPAREN error RPAREN control_statement
         """
         self.print_error(p.lineno(1),
                          "Invalid boolean expression")
 
-    def p_control_statement_4(self, p):
-        """ control_statement : ID LPAREN RPAREN SEMI
+    def p_expression_statement_4(self, p):
+        """ expression_statement : ID LPAREN RPAREN SEMI
         """
         p[0] = P4ControlFunctionCall(
             self.get_filename(), p.lineno(1),
             P4RefExpression(self.get_filename(), p.lineno(1), p[1])
         )
 
-    def p_control_statement_5(self, p):
-        """ control_statement : APPLY LPAREN ID RPAREN \
-                                  LBRACE apply_case_list RBRACE
+    def p_expression_statement_5(self, p):
+        """ expression_statement : APPLY LPAREN ID RPAREN \
+                                     LBRACE apply_case_list RBRACE
         """
         p[0] = P4ControlFunctionApplyAndSelect(
             self.get_filename(), p.lineno(1),
@@ -1883,15 +1849,15 @@ class P4Parser:
             p[6]
         )
 
-    def p_control_statement_5_error_1(self, p):
-        """ control_statement : APPLY LPAREN ID RPAREN \
-                                  LBRACE error RBRACE
+    def p_expression_statement_5_error_1(self, p):
+        """ expression_statement : APPLY LPAREN ID RPAREN \
+                                     LBRACE error RBRACE
         """
         self.print_error(p.lineno(6),
                          "Invalid case list in apply_table select block")
 
-    def p_control_statement_5_error_2(self, p):
-        """ control_statement : APPLY error
+    def p_expression_statement_5_error_2(self, p):
+        """ expression_statement : APPLY error
         """
         self.print_error(p.lineno(1),
                          "Invalid apply_table statement")
@@ -1919,12 +1885,12 @@ class P4Parser:
     # message 
 
     def p_apply_case_1(self, p):
-        """ apply_case : action_case_list LBRACE control_statement_list RBRACE
+        """ apply_case : action_case_list control_statement
         """
         p[0] = P4ControlFunctionApplyActionCase(
             self.get_filename(), p.lineno(2),
             p[1],
-            p[3]
+            p[2]
         )
 
     def p_action_case_list_1(self, p):
@@ -1943,24 +1909,24 @@ class P4Parser:
         p[0] = P4RefExpression(self.get_filename(), p.lineno(1), p[1])
 
     def p_apply_case_2(self, p):
-        """ apply_case : DEFAULT LBRACE control_statement_list RBRACE
+        """ apply_case : DEFAULT control_statement
         """
         p[0] = P4ControlFunctionApplyActionDefaultCase(
-            self.get_filename(), p.lineno(1), p[3]
+            self.get_filename(), p.lineno(1), p[2]
         )
 
     def p_apply_case_3(self, p):
-        """ apply_case : HIT LBRACE control_statement_list RBRACE
+        """ apply_case : HIT control_statement
         """
         p[0] = P4ControlFunctionApplyHitMissCase(
-            self.get_filename(), p.lineno(1), p[1], p[3]
+            self.get_filename(), p.lineno(1), p[1], p[2]
         )
 
     def p_apply_case_4(self, p):
-        """ apply_case : MISS LBRACE control_statement_list RBRACE
+        """ apply_case : MISS control_statement
         """
         p[0] = P4ControlFunctionApplyHitMissCase(
-            self.get_filename(), p.lineno(1), p[1], p[3]
+            self.get_filename(), p.lineno(1), p[1], p[2]
         )
     
     def p_bool_exp_1(self, p):
@@ -2032,6 +1998,85 @@ class P4Parser:
         """
         p[0] = p[2]
 
+    def p_general_exp(self, p):
+        """ general_exp : expression
+        """
+        p[0] = p[1]
+
+    def p_expression_1(self, p):
+        """ expression : expression LT expression 
+                       | expression GT expression
+                       | expression LE expression
+                       | expression GE expression
+                       | expression EQ expression
+                       | expression NE expression
+                       | expression PLUS expression
+                       | expression MINUS expression
+                       | expression TIMES expression
+                       | expression LSHIFT expression
+                       | expression RSHIFT expression
+                       | expression AND expression
+                       | expression OR expression
+                       | expression XOR expression
+        """
+        p[0] = P4BinaryExpression(self.get_filename(), p.lineno(1),
+                                  p[2], p[1], p[3])
+
+    def p_expression_2(self, p):
+        """ expression : expression LOR expression
+                       | expression LAND expression
+        """
+        p[0] = P4BoolBinaryExpression(self.get_filename(), p.lineno(1),
+                                      p[2], p[1], p[3])
+
+    def p_expression_3(self, p):
+        """ expression : LNOT expression
+        """
+        p[0] = P4BoolUnaryExpression(self.get_filename(), p.lineno(1),
+                                     p[1], p[2])
+
+    def p_expression_4(self, p):
+        """ expression : NOT expression
+                       | MINUS expression %prec UMINUS
+                       | PLUS expression %prec UMINUS
+        """
+        p[0] = P4UnaryExpression(self.get_filename(), p.lineno(1),
+                                 p[1], p[2])
+
+    def p_expression_5(self, p):
+        """ expression : LPAREN expression RPAREN
+        """
+        p[0] = p[2]
+
+    def p_expression_6(self, p):
+        """ expression : bool_value
+        """
+        p[0] = p[1]
+
+    def p_expression_7(self, p):
+        """ expression : VALID LPAREN header_ref RPAREN
+        """
+        p[0] = P4ValidExpression(self.get_filename(), p.lineno(1), p[3])
+
+    def p_expression_8(self, p):
+        """ expression : const_value
+        """
+        p[0] = p[1]
+
+    def p_expression_9(self, p):
+        """ expression : field_ref
+        """
+        p[0] = p[1]
+
+    def p_expression_10(self, p):
+        """ expression : ID
+        """
+        p[0] = P4RefExpression(self.get_filename(), p.lineno(1), p[1])
+
+    def p_expression_11(self, p):
+        """ expression : header_ref
+        """
+        p[0] = p[1]
 
     # PARSER EXCEPTIONS
 

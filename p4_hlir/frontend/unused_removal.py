@@ -47,26 +47,32 @@ def mark_used_P4UpdateVerify(self, objects, types = None):
 def mark_used_P4ValueSet(self, objects, types = None):
     pass
 
+def add_direct_object(self, objects):
+    table_name = self.direct_or_static[1].name
+    table = objects.get_object(table_name, P4Table)
+    assert(table is not None)
+    P4TreeNode.direct_objects.append( (self, table) )
+
+P4Counter.add_direct_object = add_direct_object
+P4Meter.add_direct_object = add_direct_object
+P4Register.add_direct_object = add_direct_object
+
 def mark_used_P4Counter(self, objects, types = None):
     if self.direct_or_static is not None and\
        self.direct_or_static[0] == "direct":
-        self.mark()
-        # _, table = self.direct_or_static
-        # table.mark_used(objects, {P4Table})
+        self.add_direct_object(objects)
 
 def mark_used_P4Meter(self, objects, types = None):
     if self.direct_or_static is not None and\
        self.direct_or_static[0] == "direct":
-        self.mark()
-        # _, table = self.direct_or_static
-        # table.mark_used(objects, {P4Table})
+        self.add_direct_object(objects)
     if self.result is not None:
         self.result.mark_used(objects)
 
 def mark_used_P4Register(self, objects, types = None):
     if self.direct_or_static is not None and\
        self.direct_or_static[0] == "direct":
-        self.mark()
+        self.add_direct_object(objects)
     if self.layout:
         self.layout.mark_used(objects, {P4HeaderType})
 
@@ -155,6 +161,7 @@ def mark_used_P4ControlFunctionCall(self, objects, types = None):
     self.name.mark_used(objects, {P4ControlFunction})
 
 def mark_used_P4RefExpression(self, objects, types = None):
+    if not types: return
     for type_ in types:
         obj = objects.get_object(self.name, type_)
         if obj:
@@ -319,11 +326,15 @@ P4ParserExceptionReturn.mark_used = mark_used_P4ParserExceptionReturn
 def remove_unused_P4Program(self, objects):
     removed = True
     while removed:
+        P4TreeNode.direct_objects = []
         removed = False
         self.mark_used(objects)
+        for obj, table in P4TreeNode.direct_objects:
+            if table.is_marked():
+                obj.mark()
+        new_objects = []
         for idx, obj in enumerate(self.objects):
             if not obj.is_marked() and "dont_trim" not in obj._pragmas:
-                self.objects.pop(idx)
                 type_name = Types.get_name(obj.get_type_())
                 msg = "%s '%s' is not reachable and will be removed"\
                       % (type_name, obj.name) # has to be a P4NamedObject at that point
@@ -331,6 +342,8 @@ def remove_unused_P4Program(self, objects):
                 removed = True
             else:
                 obj.unmark()
+                new_objects.append(obj)
+        self.objects = new_objects
 
 P4Program.remove_unused = remove_unused_P4Program
 

@@ -20,14 +20,14 @@ from setuptools import setup
 
 setup(
     name = 'p4_hlir',
-    version = '0.9.28',
+    version = '0.9.29',
     install_requires=['ply'],
     packages=['p4_hlir','p4_hlir/hlir', 'p4_hlir/frontend',
-              'p4_hlir/util'],
+              'p4_hlir/util', 'p4_hlir/graphs'],
     package_data = {
         'p4_hlir/frontend' : ['*.json'],
     },
-    scripts = ['bin/p4-validate', 'bin/p4-shell'],
+    scripts = ['bin/p4-validate', 'bin/p4-shell', 'bin/p4-graphs'],
     author = 'Antonin BAS',
     author_email = 'antonin@barefootnetworks.com',
     description = 'p4_hlir: frontend for the P4 compiler',

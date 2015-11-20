@@ -103,9 +103,18 @@ class p4_action (p4_object):
         for idx, call in enumerate(self.call_sequence):
             name, arg_list = call
 
+            def resolve_expression(arg):
+                if isinstance(arg, p4_expression):
+                    arg.left = resolve_expression(arg.left)
+                    arg.right = resolve_expression(arg.right)
+                    return arg
+                elif arg in self.signature:
+                    return p4_signature_ref(self.signature.index(arg))
+                else:
+                    return arg
+
             for arg_idx, arg in enumerate(arg_list):
-                if arg in self.signature:
-                    arg_list[arg_idx] = p4_signature_ref(self.signature.index(arg))
+                arg_list[arg_idx] = resolve_expression(arg)
 
             self.call_sequence[idx] = (
                 hlir.p4_actions[name],
@@ -124,17 +133,33 @@ class p4_action (p4_object):
                     for subcall in call_target.flat_call_sequence:
                         new_call = (subcall[0], subcall[1][:], subcall[2]+[(self,call_idx)])
                         for idx, subcall_arg in enumerate(new_call[1]):
-                            if type(subcall_arg) is p4_signature_ref:
-                                new_call[1][idx] = call_args[subcall_arg.idx]
+
+                            def resolve_expression(arg):
+                                if isinstance(arg, p4_expression):
+                                    expr = p4_expression(op=arg.op)
+                                    expr.left = resolve_expression(arg.left)
+                                    expr.right = resolve_expression(arg.right)
+                                    return expr
+                                elif isinstance(arg, p4_signature_ref):
+                                    return call_args[arg.idx]
+                                else:
+                                    return arg
+
+                            if isinstance(subcall_arg, p4_signature_ref) or\
+                               isinstance(subcall_arg, p4_expression):
+                                new_call[1][idx] = resolve_expression(subcall_arg)
+
                         self.flat_call_sequence.append(new_call)
                 else:
                     self.flat_call_sequence.append((call[0], call[1], [(self,call_idx)]))
 
             for call in self.flat_call_sequence:
-                for arg_idx, arg in enumerate(call[1]):
+                def resolve_expression(arg, arg_idx):
                     allowable_types = call[0].signature_flags[call[0].signature[arg_idx]]["type"]
-                    if (type(arg) is p4_signature_ref and
-                        p4_table_entry_data in allowable_types):
+                    if isinstance(arg, p4_expression):
+                        resolve_expression(arg.left, arg_idx)
+                        resolve_expression(arg.right, arg_idx)
+                    elif isinstance(arg, p4_signature_ref) and p4_table_entry_data in allowable_types:
                         data_width = call[0].signature_flags[call[0].signature[arg_idx]]["data_width"]
                         
                         if type(data_width) is str:
@@ -150,7 +175,7 @@ class p4_action (p4_object):
                                 elif type(inferring_arg) is p4_stateful.p4_register:
                                     data_width = inferring_arg.width
                                 else:
-                                    raise p4_compiler_msg("Could not infer width from primitive argument in action '"+call[2].name+"'")
+                                    raise p4_compiler_msg("Could not infer width from primitive action '%s' argument in action '%s'" % (call[0].name, call[2][0][0].name))
                         
                         if self.signature_widths[arg.idx] == None:
                             self.signature_widths[arg.idx] = data_width
@@ -167,6 +192,9 @@ class p4_action (p4_object):
                                 data_width,
                                 self.signature_widths[arg.idx]
                             )
+
+                for arg_idx, arg in enumerate(call[1]):
+                    resolve_expression(arg, arg_idx)
 
     def validate_types (self, hlir, calling_table, args, called_actions):
         # TODO: call sequence needs to replace strings with id'fiers
@@ -198,15 +226,15 @@ class p4_action (p4_object):
                         if arg == p4_table_entry_data:
                             populated_arg = arg
                             break
+                    elif type(arg) is p4_expression:
+                        if param_type in {int, long}:
+                            populated_arg = arg
                     else:
                         try:
                             populated_arg = param_type.get_from_hlir(hlir, arg)
                         except Exception:
                             pass
 
-                # TODO: it doesn't appear line numbers are being reported, why?
-                # ... Antonin: I fixed it by replacing self.lineno by
-                # b_action.fileno
                 if populated_arg == None:
                     if arg == p4_table_entry_data:
                         arg_str = "table entry data from table '"+binding_action+"'"
@@ -287,6 +315,12 @@ def p4_action_validate_types(hlir):
 
     for action in hlir.p4_actions.values():
         action.flatten(hlir)
+
+    for action in hlir.p4_actions.values():
+        for call in action.flat_call_sequence:
+            for arg_idx, arg in enumerate(call[1]):
+                if isinstance(arg, p4_expression):
+                    arg.resolve_names(hlir)
 
 #############################################################################
 ## Control flow

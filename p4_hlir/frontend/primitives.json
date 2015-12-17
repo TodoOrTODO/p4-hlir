@@ -257,6 +257,18 @@
 	    }
 	}
     },
+    "recirculate" :
+    {
+	"num_args" : 1,
+	"args" : ["field_list"],
+	"properties" : {
+	    "field_list" : {
+		"type" : ["field_list"],
+		"access" : "read",
+		"optional" : true
+	    }
+	}
+    },
     "modify_field_with_hash_based_offset":
     {
 	"num_args" : 4,
@@ -334,7 +346,7 @@
 		"access" : "write"
 	    },
 	    "index" : {
-		"type" : ["int", "table_entry_data"],
+		"type" : ["int", "table_entry_data", "field"],
 		"access" : "read",
 		"data_width" : 32
 	    },
